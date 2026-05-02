@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # Primary Database (PostgreSQL)
+  hunar_db:
+    image: postgres:15-alpine
+    container_name: hunar_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: hunar_admin
+      POSTGRES_PASSWORD: HunarPassword123
+      POSTGRES_DB: apka_hunar_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/postgres:/var/lib/postgresql/data
+    networks:
+      - hunar_network
+
+  # Real-time Cache (Redis) - Used for Seekers' Live Location
+  hunar_redis:
+    image: redis:7-alpine
+    container_name: hunar_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - hunar_network
+
+networks:
+  hunar_network:
+    driver: bridge

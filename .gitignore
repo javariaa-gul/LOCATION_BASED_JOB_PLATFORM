@@ -1,0 +1,31 @@
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.sublime-project
+
+# Dependencies
+node_modules/
+dist/
+build/
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+
+# Operating System
+Thumbs.db
+.DS_Store
+
+# Docker & Databases
+docker/postgres/*
+!.gitkeep
+.env
+
+# Flutter specific
+*.lock
+*.mode1v3
+*.mode2v3
+*.moved-aside
+*.pbxuser
+*.perspectivev3
