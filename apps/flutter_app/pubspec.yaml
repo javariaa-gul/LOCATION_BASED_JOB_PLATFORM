@@ -34,10 +34,14 @@ dependencies:
   flutter_secure_storage: ^9.0.0  # JWT token save karne ke liye
   provider: ^6.1.1      # State management ke liye
   geolocator: ^9.0.0    # Location services ke liye
+  get: ^4.6.6       # Ye line add karein
+  intl: ^0.19.0
+  
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:

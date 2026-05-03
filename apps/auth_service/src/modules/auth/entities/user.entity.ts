@@ -1,3 +1,4 @@
+// src/modules/auth/entities/user.entity.ts
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 export enum UserRole {
@@ -35,6 +36,17 @@ export class User {
   // Seeker specific: List of skills (empty for posters)
   @Column('text', { array: true, nullable: true })
   skills: string[];
+
+  // Location for real-time matching (Mandatory for Seekers, Optional for Posters)
+  @Column({ type: 'decimal', precision: 10, scale: 8, nullable: true })
+  latitude: number;
+
+  @Column({ type: 'decimal', precision: 11, scale: 8, nullable: true })
+  longitude: number;
+
+  // Last location update timestamp
+  @Column({ nullable: true })
+  lastLocationUpdate: Date;
 
   // JSON storage for reviews to keep them separate
   @Column('jsonb', { default: [] })

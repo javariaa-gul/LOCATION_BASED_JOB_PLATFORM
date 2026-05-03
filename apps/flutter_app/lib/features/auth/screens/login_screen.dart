@@ -1,8 +1,8 @@
+// lib/features/auth/screens/login_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
-// Apne project ka sahi package name yahan check kar len
 import 'package:flutter_app/core/services/auth_service.dart';
+import 'package:flutter_app/core/services/location_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,35 +13,28 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-
-  // ApiService ki jagah humne AuthService use kiya hai jo NestJS se connect hai
   final _authService = AuthService();
+
+  // FIX: Subscription ko yahan define kiya taake use cancel kiya ja sake
+  StreamSubscription? _locationSubscription;
 
   bool _isLoading = false;
   bool _showPassword = false;
 
-  // Backend LoginDto expects email, so we use email here
   String email = '';
   String password = '';
 
-  // Sexy UI Colors
   final Color primaryBlue = const Color(0xFF5AC8E8);
+  final Color darkBlue = const Color(0xFF0D47A1);
   final Color pureBlack = const Color(0xFF000000);
   final Color offWhite = const Color(0xFFF2F2F2);
+  final Color lightGray = const Color(0xFFE8E8E8);
 
-  void _startPeriodicLocationUpdate() {
-    Timer.periodic(const Duration(minutes: 5), (timer) async {
-      try {
-        Position position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.low,
-        );
-        debugPrint(
-          "Location Update: ${position.latitude}, ${position.longitude}",
-        );
-      } catch (e) {
-        debugPrint("Location update failed: $e");
-      }
-    });
+  @override
+  void dispose() {
+    // FIX: Memory leak se bachne ke liye subscription cancel karna zaruri hai
+    _locationSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _handleLogin() async {
@@ -49,31 +42,29 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Capture Location (Forensic Simulation requirement)
-      await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      // 2. Call NestJS Backend via AuthService
-      // Backend expects { email, password }
-      await _authService.login(email, password);
+      final response = await _authService.login(email, password);
 
       if (mounted) {
-        _startPeriodicLocationUpdate();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Login Successful! Welcome to Apka Hunar'),
+            content: Text('✅ Apka Hunar mein welcome hain!'),
             backgroundColor: Colors.green,
           ),
         );
-        // Dashboard par bhej den
+
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted && response['user']['role'] == 'SEEKER') {
+            _startBackgroundLocationTracking();
+          }
+        });
+
         Navigator.pushReplacementNamed(context, '/dashboard');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString()),
+            content: Text('❌ ${e.toString()}'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -83,91 +74,158 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _startBackgroundLocationTracking() {
+    // FIX: 'subscription' variable error fixed by assigning to class property
+    _locationSubscription = LocationService.startPositionStream(
+      updateInterval: const Duration(minutes: 5),
+      distanceFilter: 500,
+      onLocationUpdate: (position) async {
+        try {
+          // FIX: '_storage' direct access ki jagah service ka method use karein
+          // Make sure to add 'getUserId' method in your AuthService
+          final userId = await _authService.getUserId();
+
+          if (userId != null) {
+            await _authService.updateLocation(
+              userId,
+              position.latitude,
+              position.longitude,
+            );
+            debugPrint(
+              'Location updated: ${position.latitude}, ${position.longitude}',
+            );
+          }
+        } catch (e) {
+          debugPrint('Background location update error: $e');
+        }
+      },
+      onError: (error) {
+        debugPrint('Background location stream error: $error');
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32.0),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 450),
-            child: Form(
-              key: _formKey,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [primaryBlue, darkBlue],
+                ),
+              ),
+              padding: const EdgeInsets.only(
+                top: 60,
+                bottom: 40,
+                left: 24,
+                right: 24,
+              ),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Logo Section
                   Image.asset(
                     'assets/images/logo.png',
-                    height: 100,
-                    errorBuilder: (c, e, s) => Icon(
+                    height: 70,
+                    errorBuilder: (c, e, s) => const Icon(
                       Icons.handyman_rounded,
-                      size: 80,
-                      color: primaryBlue,
+                      size: 50,
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Text(
-                    'Welcome Back',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: pureBlack,
-                    ),
-                  ),
                   const Text(
-                    'Login to continue using APKA HUNAR',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 40),
-
-                  // Email Field (Backend compatibility)
-                  _buildField(
-                    "Email Address",
-                    Icons.email_outlined,
-                    (v) => email = v,
-                    (v) {
-                      if (v == null || v.isEmpty) return 'Email is required';
-                      if (!v.contains('@'))
-                        return 'Enter a valid email address';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Password Field
-                  _buildField(
-                    "Password",
-                    Icons.lock_outline,
-                    (v) => password = v,
-                    (v) => (v == null || v.length < 8)
-                        ? 'Password must be at least 8 characters'
-                        : null,
-                    isPass: true,
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // Login Button
-                  _buildButton('LOGIN', _handleLogin),
-
-                  const SizedBox(height: 10),
-                  TextButton(
-                    onPressed: () =>
-                        Navigator.pushReplacementNamed(context, '/signup'),
-                    child: Text(
-                      'Don\'t have an account? Sign Up',
-                      style: TextStyle(
-                        color: primaryBlue,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    'Khush Amdeed',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Apke kaam ke liye sahi log dhundne dein',
+                    style: TextStyle(fontSize: 14, color: Colors.white70),
                   ),
                 ],
               ),
             ),
-          ),
+
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Login Details',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: pureBlack,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    _buildField(
+                      "Email Address",
+                      Icons.email_outlined,
+                      (v) => email = v,
+                      (v) {
+                        if (v == null || v.isEmpty) return 'Email zaruri hai';
+                        if (!v.contains('@')) return 'Sahi email likhin';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+
+                    _buildField(
+                      "Password",
+                      Icons.lock_outline,
+                      (v) => password = v,
+                      (v) => (v == null || v.length < 8)
+                          ? 'Kam se kam 8 characters'
+                          : null,
+                      isPass: true,
+                    ),
+                    const SizedBox(height: 28),
+
+                    _buildButton('LOGIN', _handleLogin),
+
+                    const SizedBox(height: 16),
+                    Center(
+                      child: TextButton(
+                        onPressed: () =>
+                            Navigator.pushReplacementNamed(context, '/signup'),
+                        child: RichText(
+                          text: TextSpan(
+                            text: 'Account nahi hai? ',
+                            // FIX: Color code updated to 8-digit hex
+                            style: const TextStyle(color: Color(0xFF666666)),
+                            children: [
+                              TextSpan(
+                                text: 'Banain',
+                                style: TextStyle(
+                                  color: primaryBlue,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -185,7 +243,11 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+            color: Colors.black,
+          ),
         ),
         const SizedBox(height: 8),
         TextFormField(
@@ -200,6 +262,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     icon: Icon(
                       _showPassword ? Icons.visibility : Icons.visibility_off,
                       size: 20,
+                      color: primaryBlue,
                     ),
                     onPressed: () =>
                         setState(() => _showPassword = !_showPassword),
@@ -207,9 +270,21 @@ class _LoginScreenState extends State<LoginScreen> {
                 : null,
             filled: true,
             fillColor: offWhite,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 14,
+              horizontal: 12,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: primaryBlue, width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.red, width: 1),
             ),
           ),
         ),
@@ -220,22 +295,24 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildButton(String text, VoidCallback? onPressed) {
     return SizedBox(
       width: double.infinity,
-      height: 55,
+      height: 56,
       child: ElevatedButton(
         onPressed: _isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: pureBlack,
+          backgroundColor: primaryBlue,
+          disabledBackgroundColor: Colors.grey[400],
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
+          elevation: 2,
         ),
         child: _isLoading
             ? const SizedBox(
-                height: 20,
-                width: 20,
+                height: 24,
+                width: 24,
                 child: CircularProgressIndicator(
                   color: Colors.white,
-                  strokeWidth: 2,
+                  strokeWidth: 2.5,
                 ),
               )
             : Text(
@@ -243,6 +320,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  letterSpacing: 0.5,
                 ),
               ),
       ),

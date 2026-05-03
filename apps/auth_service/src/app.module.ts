@@ -1,7 +1,9 @@
+// apps/auth_service/src/app.module.ts
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './modules/auth/auth.module';
 import { User } from './modules/auth/entities/user.entity';
+import { Job } from './modules/auth/entities/job.entity';
 
 @Module({
   imports: [
@@ -12,7 +14,7 @@ import { User } from './modules/auth/entities/user.entity';
       username: 'hunar_admin',
       password: 'HunarPassword123',
       database: 'apka_hunar_db',
-      entities: [User],
+      entities: [User, Job],
       synchronize: true, // Automatically creates/updates tables based on entities
       logging: true,
     }),

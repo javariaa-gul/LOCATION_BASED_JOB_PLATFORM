@@ -1,3 +1,4 @@
+// src/modules/auth/jwt.strategy.ts
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -14,13 +15,25 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: 'SUPER_SECRET_KEY_123', // Production mein isay .env mein hona chahiye
+      secretOrKey: 'SUPER_SECRET_KEY_123', 
     });
   }
 
   async validate(payload: any) {
-    const user = await this.userRepository.findOne({ where: { id: payload.sub } });
-    if (!user) throw new UnauthorizedException();
+    // 🔥 FIX: Check both 'sub' and 'id' in case of payload mismatch
+    const userId = payload.sub || payload.id;
+
+    if (!userId) {
+      console.error('JWT Payload is missing user identifier:', payload);
+      throw new UnauthorizedException('Invalid token payload');
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    
     return user;
   }
 }

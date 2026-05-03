@@ -1,4 +1,5 @@
-import { IsEmail, IsString, IsEnum, MinLength, Matches, IsOptional } from 'class-validator';
+// src/modules/auth/dto/register.dto.ts
+import { IsEmail, IsString, IsEnum, MinLength, Matches, IsOptional, IsNumber } from 'class-validator';
 import { UserRole } from '../entities/user.entity';
 
 export class RegisterDto {
@@ -27,4 +28,13 @@ export class RegisterDto {
   @IsOptional()
   @IsString({ each: true })
   skills?: string[];
+
+  // Location fields - Mandatory for Seekers (frontend validation), Optional for Posters
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
 }
